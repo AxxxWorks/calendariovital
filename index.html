@@ -378,34 +378,6 @@ const firebaseConfig = {
                 quoteContainer = document.getElementById('motivational-quote-container');
             }
 
-            // NUEVA FUNCIÓN DE CARGA DESDE FIRESTORE
-            async function loadProgressFromFirestore() {
-                if (!currentUser) return;
-
-                const docRef = db.collection('userProgress').doc(currentUser.uid);
-                const doc = await docRef.get();
-
-                if (doc.exists && doc.data().progressData) {
-                    console.log("Datos cargados desde Firestore.");
-                    userProgress = doc.data().progressData;
-                } else {
-                    console.log("Nuevo usuario. Se generará un plan inicial.");
-                    userProgress = {}; // Empezamos con un objeto vacío
-                    seedInitialProgress(); // Generamos los datos iniciales
-                    studyPlan = generateStudyPlan(); // Generamos el plan de estudio
-                    saveData('studyPlan', studyPlan); // Esto disparará el primer guardado en Firestore
-                }
-
-                // Una vez cargados o generados los datos, actualizamos toda la UI
-                studyPlan = getData('studyPlan', generateStudyPlan());
-                countdownTargetDateStr = getData('countdownTarget', '2025-09-23');
-                countdownDatePicker.value = countdownTargetDateStr;
-
-                startCountdown();
-                populateCalendar();
-                updateGlobalProgressBars();
-            }
-
             // NUEVA FUNCIÓN DE GUARDADO HACIA FIRESTORE
             function saveData(key, value) {
                 if (!currentUser) {
@@ -433,10 +405,94 @@ const firebaseConfig = {
                 }, 1500); // Guardamos 1.5 segundos después de la última modificación
             }
 
-            // El resto de tus funciones auxiliares (sin cambios)...
-            // ... (switchView, generateTopicId, getScoreColor, etc.)
-            // PEGA AQUÍ TODAS LAS DEMÁS FUNCIONES DE TU SCRIPT ORIGINAL
-            // (desde `switchView` hasta `main`, EXCEPTO `loadUserProgress` y `saveData` que ya reemplazamos)
+            // --- INICIO DE LÓGICA DE ACTUALIZACIÓN DE PLAN ---
+            function ensureTopicsArePresent(plan) {
+                const topicsToAdd = [
+                    { specialty: "TYO", topic: "Sarcoma de Ewing", date: "2025-07-03" },
+                    { specialty: "TYO", topic: "Tumores óseos malignos", date: "2025-07-03" }
+                ];
+
+                let planModified = false;
+
+                const allExistingTopics = new Set();
+                plan.forEach(day => {
+                    day.blocks.forEach(block => {
+                        if (block.topics) {
+                            block.topics.forEach(topic => allExistingTopics.add(topic));
+                        }
+                    });
+                });
+
+                topicsToAdd.forEach(item => {
+                    if (!allExistingTopics.has(item.topic)) {
+                        let targetDay = plan.find(d => d.date === item.date);
+                        if (!targetDay) {
+                            targetDay = { date: item.date, blocks: [] };
+                            plan.push(targetDay);
+                        }
+
+                        let targetBlock = targetDay.blocks.find(b => b.subject === item.specialty);
+                        if (!targetBlock) {
+                            targetBlock = { subject: item.specialty, topics: [] };
+                            targetDay.blocks.unshift(targetBlock);
+                        }
+
+                        if (!targetBlock.topics.includes(item.topic)) {
+                            // Añadir junto a otros temas de oncología si es posible
+                            const osteosarcomaIndex = targetBlock.topics.indexOf("Osteosarcoma");
+                            if(osteosarcomaIndex > -1) {
+                                targetBlock.topics.splice(osteosarcomaIndex + 1, 0, item.topic);
+                            } else {
+                                targetBlock.topics.push(item.topic);
+                            }
+                            planModified = true;
+                        }
+                    }
+                });
+                
+                if (planModified) {
+                    plan.sort((a, b) => new Date(a.date) - new Date(b.date));
+                }
+                
+                return planModified;
+            }
+            // --- FIN DE LÓGICA DE ACTUALIZACIÓN DE PLAN ---
+
+            async function loadProgressFromFirestore() {
+                if (!currentUser) return;
+
+                const docRef = db.collection('userProgress').doc(currentUser.uid);
+                const doc = await docRef.get();
+
+                if (doc.exists && doc.data().progressData) {
+                    console.log("Datos cargados desde Firestore.");
+                    userProgress = doc.data().progressData;
+                } else {
+                    console.log("Nuevo usuario. Se generará un plan inicial.");
+                    userProgress = {};
+                    seedInitialProgress();
+                    studyPlan = generateStudyPlan();
+                    saveData('studyPlan', studyPlan);
+                }
+
+                studyPlan = getData('studyPlan', generateStudyPlan());
+                
+                // --- LLAMADA A LA LÓGICA DE ACTUALIZACIÓN ---
+                const wasModified = ensureTopicsArePresent(studyPlan);
+                if (wasModified) {
+                    console.log("Plan de estudio actualizado con nuevos temas. Guardando...");
+                    saveData('studyPlan', studyPlan); // Persiste el plan actualizado
+                }
+                // --- FIN DE LA LLAMADA ---
+
+                countdownTargetDateStr = getData('countdownTarget', '2025-09-23');
+                countdownDatePicker.value = countdownTargetDateStr;
+
+                startCountdown();
+                populateCalendar();
+                updateGlobalProgressBars();
+            }
+            
             function switchView() { const isCalendarVisible = !calendarView.classList.contains('hidden'); if (isCalendarVisible) { calendarView.classList.add('hidden'); boardView.classList.remove('hidden'); viewSwitcher.innerHTML = `<i class="far fa-calendar-alt"></i> Calendario Vital`; viewSwitcher.dataset.currentView = 'board'; populateKanbanBoard(); } else { boardView.classList.add('hidden'); calendarView.classList.remove('hidden'); viewSwitcher.innerHTML = `<i class="fas fa-columns"></i> Tablero Vital`; viewSwitcher.dataset.currentView = 'calendar'; populateCalendar(); } }
             function generateTopicId(topicName) { return `topic_${topicName.toLowerCase().replace(/[^a-z0-9]/g, '')}`; }
             function getScoreColor(percentage) { if (percentage >= 80) return 'var(--vfd-green)'; if (percentage >= 60) return 'var(--warning-color)'; return 'var(--error-color)'; }
