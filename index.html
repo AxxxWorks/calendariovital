@@ -1,16 +1,3 @@
-¡Entendido! Comprendo perfectamente la situación. Pido disculpas, el error fue de mi parte y tiene una explicación técnica que ya he corregido.
-
-El problema fue que, aunque añadí los temas a la función que *genera* el plan de estudios, tu progreso (incluyendo el calendario) ya está guardado en la nube. Por lo tanto, el sistema cargaba tu plan antiguo sin los nuevos temas, ignorando la nueva lógica de generación.
-
-**La Solución Definitiva:**
-
-He implementado una solución mucho más robusta. Ahora, al cargar tu progreso, un pequeño script de **actualización** se ejecutará para verificar si los temas "Sarcoma de Ewing" y "Tumores óseos malignos" faltan en tu plan. Si no los encuentra, los **inyectará automáticamente en la fecha correcta (3 de julio)** y guardará esta nueva versión de tu calendario en la nube.
-
-De esta forma, la corrección se aplica a tu cuenta existente y el problema queda resuelto de forma permanente.
-
-Aquí tienes el código completo con la solución integrada. Ahora sí, al cargar la página, verás los temas en su lugar correspondiente.
-
-```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -843,4 +830,3 @@ const firebaseConfig = {
     </script>
 </body>
 </html>
-```
